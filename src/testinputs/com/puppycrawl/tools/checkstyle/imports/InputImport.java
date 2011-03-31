@@ -28,12 +28,16 @@ import static java.io.File.createTempFile;
 import static sun.net.ftpclient.FtpClient.*;
 import java.awt.Component;
 import java.awt.Label;
+import java.util.Date;
+import java.util.Calendar;
 
 /**
  * Test case for imports
+ * Here's an import used only by javadoc: {@link Date}.
  * @author Oliver Burn
  * @author lkuehne
  * @author Michael Studman
+ * @see Calendar Should avoid unused import for Calendar
  **/
 class InputImport
 {
