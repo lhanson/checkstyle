@@ -24,6 +24,7 @@ import com.google.common.collect.Sets;
 import com.puppycrawl.tools.checkstyle.api.DetailAST;
 import com.puppycrawl.tools.checkstyle.api.FileContents;
 import com.puppycrawl.tools.checkstyle.api.FullIdent;
+import com.puppycrawl.tools.checkstyle.api.JavadocTag;
 import com.puppycrawl.tools.checkstyle.api.JavadocTagInfo;
 import com.puppycrawl.tools.checkstyle.api.Scope;
 import com.puppycrawl.tools.checkstyle.api.ScopeUtils;
@@ -45,7 +46,6 @@ import java.util.regex.Pattern;
  * @author Oliver Burn
  * @author Rick Giles
  * @author o_sukhodoslky
- * @version 1.1
  */
 public class JavadocMethodCheck extends AbstractTypeAwareCheck
 {

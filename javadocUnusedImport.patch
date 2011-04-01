@@ -1,0 +1,770 @@
+diff --git a/src/checkstyle/com/puppycrawl/tools/checkstyle/api/JavadocTag.java b/src/checkstyle/com/puppycrawl/tools/checkstyle/api/JavadocTag.java
+new file mode 100644
+index 0000000..c5f5e31
+--- /dev/null
++++ b/src/checkstyle/com/puppycrawl/tools/checkstyle/api/JavadocTag.java
+@@ -0,0 +1,136 @@
++////////////////////////////////////////////////////////////////////////////////
++// checkstyle: Checks Java source code for adherence to a set of rules.
++// Copyright (C) 2001-2010  Oliver Burn
++//
++// This library is free software; you can redistribute it and/or
++// modify it under the terms of the GNU Lesser General Public
++// License as published by the Free Software Foundation; either
++// version 2.1 of the License, or (at your option) any later version.
++//
++// This library is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++// Lesser General Public License for more details.
++//
++// You should have received a copy of the GNU Lesser General Public
++// License along with this library; if not, write to the Free Software
++// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
++////////////////////////////////////////////////////////////////////////////////
++package com.puppycrawl.tools.checkstyle.api;
++
++/**
++ * Represents a Javadoc tag. Provides methods to query what type of tag it is.
++ * @author Oliver Burn
++ */
++public class JavadocTag
++{
++    /** the line number of the tag **/
++    private final int mLineNo;
++    /** the column number of the tag **/
++    private int mColumnNo;
++    /** an optional first argument. For example the parameter name. **/
++    private final String mArg1;
++    /** the JavadocTagInfo representing this tag **/
++    private final JavadocTagInfo mTagInfo;
++
++    /**
++     * Constructs the object.
++     * @param aLine the line number of the tag
++     * @param aColumn the column number of the tag
++     * @param aTag the tag string
++     * @param aArg1 the tag argument
++     **/
++    public JavadocTag(int aLine, int aColumn, String aTag, String aArg1)
++    {
++        mLineNo = aLine;
++        mColumnNo = aColumn;
++        mArg1 = aArg1;
++        mTagInfo = JavadocTagInfo.fromName(aTag);
++    }
++
++    /**
++     * Constructs the object.
++     * @param aLine the line number of the tag
++     * @param aColumn the column number of the tag
++     * @param aTag the tag string
++     **/
++    public JavadocTag(int aLine, int aColumn, String aTag)
++    {
++        this(aLine, aColumn, aTag, null);
++    }
++
++    /** @return the tag string **/
++    public String getTagName()
++    {
++        return mTagInfo.getName();
++    }
++
++    /** @return the first argument. null if not set. **/
++    public String getArg1()
++    {
++        return mArg1;
++    }
++
++    /** @return the line number **/
++    public int getLineNo()
++    {
++        return mLineNo;
++    }
++
++    /** @return the column number */
++    public int getColumnNo()
++    {
++        return mColumnNo;
++    }
++
++    @Override
++    public String toString()
++    {
++        return "{Tag = '" + getTagName() + "', lineNo = " + getLineNo()
++            + ", columnNo=" + mColumnNo + ", Arg1 = '" + getArg1() + "'}";
++    }
++
++    /** @return whether the tag is an 'author' tag **/
++    public boolean isAuthorTag()
++    {
++        return JavadocTagInfo.AUTHOR.equals(mTagInfo);
++    }
++
++    /** @return whether the tag is an 'return' tag **/
++    public boolean isReturnTag()
++    {
++        return JavadocTagInfo.RETURN.equals(mTagInfo);
++    }
++
++    /** @return whether the tag is an 'param' tag **/
++    public boolean isParamTag()
++    {
++        return JavadocTagInfo.PARAM.equals(mTagInfo);
++    }
++
++    /** @return whether the tag is an 'throws' or 'exception' tag **/
++    public boolean isThrowsTag()
++    {
++        return (JavadocTagInfo.THROWS.equals(mTagInfo)
++            || JavadocTagInfo.EXCEPTION.equals(mTagInfo));
++    }
++
++    /** @return whether the tag is a 'see' or 'inheritDoc' tag **/
++    public boolean isSeeOrInheritDocTag()
++    {
++        return (JavadocTagInfo.SEE.equals(mTagInfo) || isInheritDocTag());
++    }
++
++    /** @return whether the tag is a 'inheritDoc' tag **/
++    public boolean isInheritDocTag()
++    {
++        return JavadocTagInfo.INHERIT_DOC.equals(mTagInfo);
++    }
++
++    /** @return whether the tag can contain references to imported classes **/
++    public boolean canReferenceImports()
++    {
++        return (JavadocTagInfo.SEE.equals(mTagInfo) ||
++                JavadocTagInfo.LINK.equals(mTagInfo));
++    }
++}
+diff --git a/src/checkstyle/com/puppycrawl/tools/checkstyle/api/JavadocUtils.java b/src/checkstyle/com/puppycrawl/tools/checkstyle/api/JavadocUtils.java
+new file mode 100644
+index 0000000..afd89dc
+--- /dev/null
++++ b/src/checkstyle/com/puppycrawl/tools/checkstyle/api/JavadocUtils.java
+@@ -0,0 +1,165 @@
++////////////////////////////////////////////////////////////////////////////////
++// checkstyle: Checks Java source code for adherence to a set of rules.
++// Copyright (C) 2001-2010  Oliver Burn
++//
++// This library is free software; you can redistribute it and/or
++// modify it under the terms of the GNU Lesser General Public
++// License as published by the Free Software Foundation; either
++// version 2.1 of the License, or (at your option) any later version.
++//
++// This library is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++// Lesser General Public License for more details.
++//
++// You should have received a copy of the GNU Lesser General Public
++// License along with this library; if not, write to the Free Software
++// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
++////////////////////////////////////////////////////////////////////////////////
++package com.puppycrawl.tools.checkstyle.api;
++
++import com.google.common.collect.Lists;
++import java.util.List;
++import java.util.regex.Matcher;
++import java.util.regex.Pattern;
++
++/**
++ * Contains utility methods for working with Javadoc.
++ */
++public final class JavadocUtils
++{
++    ///CLOVER:OFF
++    /** prevent instantiation */
++    private JavadocUtils()
++    {
++    }
++    ///CLOVER:ON
++
++    /**
++     * Gets validTags from a given piece of Javadoc.
++     * @param aCmt the Javadoc comment to process.
++     * @param tagType the type of validTags we're interested in
++     * @return all standalone validTags from the given javadoc.
++     */
++    public static JavadocTags getJavadocTags(TextBlock aCmt,
++                                             JavadocTagType tagType)
++    {
++        final String[] text = aCmt.getText();
++        final List<JavadocTag> tags = Lists.newArrayList();
++        final List<InvalidJavadocTag> invalidTags = Lists.newArrayList();
++        Pattern blockTagPattern = Utils.getPattern("/\\*{2,}\\s*@(\\p{Alpha}+)\\s");
++        for (int i = 0; i < text.length; i++) {
++            final String s = text[i];
++            final Matcher blockTagMatcher = blockTagPattern.matcher(s);
++            if ((tagType.equals(JavadocTagType.ALL) ||
++                  tagType.equals(JavadocTagType.BLOCK))
++                && blockTagMatcher.find()) {
++                final String tagName = blockTagMatcher.group(1);
++                String content = s.substring(blockTagMatcher.end(1));
++                if (content.endsWith("*/")) {
++                    content = content.substring(0, content.length() - 2);
++                }
++                int line = aCmt.getStartLineNo() + i;
++                int col = blockTagMatcher.start(1) - 1;
++                if (i == 0) {
++                    col += aCmt.getStartColNo();
++                }
++                if (JavadocTagInfo.isValidName(tagName)) {
++                    tags.add(new JavadocTag(line, col, tagName, content.trim()));
++                }
++                else {
++                    invalidTags.add(new InvalidJavadocTag(line, col, tagName));
++                }
++            }
++            // No block tag, so look for inline validTags
++            else if (tagType.equals(JavadocTagType.ALL) ||
++                     tagType.equals(JavadocTagType.INLINE)) {
++                // Match JavaDoc text after comment characters
++                Pattern commentPattern = Utils.getPattern("^\\s*(?:/\\*{2,}|\\*+)\\s*(.*)");
++                Matcher commentMatcher = commentPattern.matcher(s);
++                final String commentContents;
++                final int commentOffset; // offset including comment characters
++                if (!commentMatcher.find()) {
++                    commentContents = s; // No leading asterisks, still valid
++                    commentOffset = 0;
++                }
++                else {
++                    commentContents = commentMatcher.group(1);
++                    commentOffset = commentMatcher.start(1) - 1;
++                }
++                Pattern tagPattern = Utils.getPattern(".*?\\{@(\\p{Alpha}+)\\s+(.*?)\\}");
++                Matcher tagMatcher = tagPattern.matcher(commentContents);
++                while (tagMatcher.find()) {
++                    if (tagMatcher.groupCount() == 2) {
++                        String tagName = tagMatcher.group(1);
++                        String tagValue = tagMatcher.group(2).trim();
++                        int line = aCmt.getStartLineNo() + i;
++                        int col = commentOffset + (tagMatcher.start(1) - 1);
++                        if (i == 0) {
++                            col += aCmt.getStartColNo();
++                        }
++                        if (JavadocTagInfo.isValidName(tagName)) {
++                            tags.add(new JavadocTag(
++                                line, col, tagName, tagValue));
++                        }
++                        else {
++                            invalidTags.add(new InvalidJavadocTag(
++                                line, col, tagName));
++                        }
++                    }
++                    //else Error: Unexpected match count for inline JavaDoc tag!
++                }
++            }
++            blockTagPattern = Utils.getPattern("^\\s*\\**\\s*@(\\p{Alpha}+)\\s");
++        }
++        return new JavadocTags(tags, invalidTags);
++    }
++
++    /**
++     * The type of Javadoc tag we want returned.
++     */
++    public enum JavadocTagType
++    {
++        /** block type. */
++        BLOCK,
++        /** inline type. */
++        INLINE,
++        /** all validTags. */
++        ALL;
++    }
++
++    /**
++     * Value object for combining the list of valid validTags with information
++     * about invalid validTags encountered in a certain Javadoc comment.
++     */
++    public static final class JavadocTags {
++        /** Valid validTags. */
++        public final List<JavadocTag> validTags;
++        /** Invalid validTags. */
++        public final List<InvalidJavadocTag> invalidTags;
++
++        public JavadocTags(List<JavadocTag> aTags,
++                                List<InvalidJavadocTag> aInvalidTags) {
++            validTags = aTags;
++            invalidTags = aInvalidTags;
++        }
++    }
++
++    /**
++     * Value object for storing data about an invalid Javadoc validTags.
++     */
++    public static final class InvalidJavadocTag {
++        /** The line in which the invalid tag occurs. */
++        public final int line;
++        /** The column in which the invalid tag occurs. */
++        public final int col;
++        /** The name of the invalid tag. */
++        public final String name;
++
++        public InvalidJavadocTag(int aLine, int aCol, String aName) {
++            line = aLine;
++            col = aCol;
++            name = aName;
++        }
++    }
++}
+diff --git a/src/checkstyle/com/puppycrawl/tools/checkstyle/checks/imports/UnusedImportsCheck.java b/src/checkstyle/com/puppycrawl/tools/checkstyle/checks/imports/UnusedImportsCheck.java
+index 7272a17..e17140d 100755
+--- a/src/checkstyle/com/puppycrawl/tools/checkstyle/checks/imports/UnusedImportsCheck.java
++++ b/src/checkstyle/com/puppycrawl/tools/checkstyle/checks/imports/UnusedImportsCheck.java
+@@ -21,10 +21,18 @@ package com.puppycrawl.tools.checkstyle.checks.imports;
+ import com.google.common.collect.Sets;
+ import com.puppycrawl.tools.checkstyle.api.Check;
+ import com.puppycrawl.tools.checkstyle.api.DetailAST;
++import com.puppycrawl.tools.checkstyle.api.FileContents;
+ import com.puppycrawl.tools.checkstyle.api.FullIdent;
++import com.puppycrawl.tools.checkstyle.api.JavadocTag;
++import com.puppycrawl.tools.checkstyle.api.JavadocUtils;
++import com.puppycrawl.tools.checkstyle.api.JavadocUtils.JavadocTags;
++import com.puppycrawl.tools.checkstyle.api.TextBlock;
+ import com.puppycrawl.tools.checkstyle.api.TokenTypes;
+ import com.puppycrawl.tools.checkstyle.api.Utils;
++import java.util.List;
+ import java.util.Set;
++import java.util.regex.Matcher;
++import java.util.regex.Pattern;
+ 
+ /**
+  * <p>
+@@ -40,7 +48,6 @@ import java.util.Set;
+  * Compatible with Java 1.5 source.
+  *
+  * @author Oliver Burn
+- * @version 1.1
+  */
+ public class UnusedImportsCheck extends Check
+ {
+@@ -139,6 +146,7 @@ public class UnusedImportsCheck extends Check
+         {
+             mReferenced.add(aAST.getText());
+         }
++        processJavadoc(aAST);
+     }
+ 
+     /**
+@@ -166,4 +174,30 @@ public class UnusedImportsCheck extends Check
+             mImports.add(name);
+         }
+     }
++
++    /**
++     * Collects references made in JavaDoc comments.
++     * @param aAST node to inspect for JavaDoc
++     */
++    private void processJavadoc(DetailAST aAST) {
++        final FileContents contents = getFileContents();
++        final int lineNo = aAST.getLineNo();
++        final TextBlock cmt = contents.getJavadocBefore(lineNo);
++        if (cmt != null) {
++            final JavadocTags tags =
++                JavadocUtils.getJavadocTags(cmt, JavadocUtils.JavadocTagType.ALL);
++            for (JavadocTag tag : tags.validTags) {
++                if (tag.canReferenceImports()) {
++                    String identifier = tag.getArg1();
++                    // Trim off method or link text
++                    Pattern pattern = Utils.getPattern("(.+?)(?:\\s+|#|\\$).*");
++                    Matcher matcher = pattern.matcher(identifier);
++                    if (matcher.find()) {
++                        identifier = matcher.group(1);
++                    }
++                    mReferenced.add(identifier);
++                }
++            }
++        }
++    }
+ }
+diff --git a/src/checkstyle/com/puppycrawl/tools/checkstyle/checks/javadoc/JavadocMethodCheck.java b/src/checkstyle/com/puppycrawl/tools/checkstyle/checks/javadoc/JavadocMethodCheck.java
+index 3d39819..9edd685 100755
+--- a/src/checkstyle/com/puppycrawl/tools/checkstyle/checks/javadoc/JavadocMethodCheck.java
++++ b/src/checkstyle/com/puppycrawl/tools/checkstyle/checks/javadoc/JavadocMethodCheck.java
+@@ -24,6 +24,7 @@ import com.google.common.collect.Sets;
+ import com.puppycrawl.tools.checkstyle.api.DetailAST;
+ import com.puppycrawl.tools.checkstyle.api.FileContents;
+ import com.puppycrawl.tools.checkstyle.api.FullIdent;
++import com.puppycrawl.tools.checkstyle.api.JavadocTag;
+ import com.puppycrawl.tools.checkstyle.api.JavadocTagInfo;
+ import com.puppycrawl.tools.checkstyle.api.Scope;
+ import com.puppycrawl.tools.checkstyle.api.ScopeUtils;
+@@ -45,7 +46,6 @@ import java.util.regex.Pattern;
+  * @author Oliver Burn
+  * @author Rick Giles
+  * @author o_sukhodoslky
+- * @version 1.1
+  */
+ public class JavadocMethodCheck extends AbstractTypeAwareCheck
+ {
+diff --git a/src/checkstyle/com/puppycrawl/tools/checkstyle/checks/javadoc/JavadocTag.java b/src/checkstyle/com/puppycrawl/tools/checkstyle/checks/javadoc/JavadocTag.java
+deleted file mode 100755
+index 5a26ae4..0000000
+--- a/src/checkstyle/com/puppycrawl/tools/checkstyle/checks/javadoc/JavadocTag.java
++++ /dev/null
+@@ -1,132 +0,0 @@
+-////////////////////////////////////////////////////////////////////////////////
+-// checkstyle: Checks Java source code for adherence to a set of rules.
+-// Copyright (C) 2001-2010  Oliver Burn
+-//
+-// This library is free software; you can redistribute it and/or
+-// modify it under the terms of the GNU Lesser General Public
+-// License as published by the Free Software Foundation; either
+-// version 2.1 of the License, or (at your option) any later version.
+-//
+-// This library is distributed in the hope that it will be useful,
+-// but WITHOUT ANY WARRANTY; without even the implied warranty of
+-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+-// Lesser General Public License for more details.
+-//
+-// You should have received a copy of the GNU Lesser General Public
+-// License along with this library; if not, write to the Free Software
+-// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+-////////////////////////////////////////////////////////////////////////////////
+-package com.puppycrawl.tools.checkstyle.checks.javadoc;
+-
+-import com.puppycrawl.tools.checkstyle.api.JavadocTagInfo;
+-
+-/**
+- * Represents a Javadoc tag. Provides methods to query what type of tag it is.
+- * @author Oliver Burn
+- **/
+-class JavadocTag
+-{
+-    /** the line number of the tag **/
+-    private final int mLineNo;
+-    /** the column number of the tag **/
+-    private int mColumnNo;
+-    /** an optional first argument. For example the parameter name. **/
+-    private final String mArg1;
+-    /** the JavadocTagInfo representing this tag **/
+-    private final JavadocTagInfo mTagInfo;
+-
+-    /**
+-     * Constructs the object.
+-     * @param aLine the line number of the tag
+-     * @param aColumn the column number of the tag
+-     * @param aTag the tag string
+-     * @param aArg1 the tag argument
+-     **/
+-    JavadocTag(int aLine, int aColumn, String aTag, String aArg1)
+-    {
+-        mLineNo = aLine;
+-        mColumnNo = aColumn;
+-        mArg1 = aArg1;
+-        mTagInfo = JavadocTagInfo.fromName(aTag);
+-    }
+-
+-    /**
+-     * Constructs the object.
+-     * @param aLine the line number of the tag
+-     * @param aColumn the column number of the tag
+-     * @param aTag the tag string
+-     **/
+-    JavadocTag(int aLine, int aColumn, String aTag)
+-    {
+-        this(aLine, aColumn, aTag, null);
+-    }
+-
+-    /** @return the tag string **/
+-    String getTagName()
+-    {
+-        return mTagInfo.getName();
+-    }
+-
+-    /** @return the first argument. null if not set. **/
+-    String getArg1()
+-    {
+-        return mArg1;
+-    }
+-
+-    /** @return the line number **/
+-    int getLineNo()
+-    {
+-        return mLineNo;
+-    }
+-
+-    /** @return the column number */
+-    int getColumnNo()
+-    {
+-        return mColumnNo;
+-    }
+-
+-    @Override
+-    public String toString()
+-    {
+-        return "{Tag = '" + getTagName() + "', lineNo = " + getLineNo()
+-            + ", columnNo=" + mColumnNo + ", Arg1 = '" + getArg1() + "'}";
+-    }
+-
+-    /** @return whether the tag is an 'author' tag **/
+-    boolean isAuthorTag()
+-    {
+-        return JavadocTagInfo.AUTHOR.equals(mTagInfo);
+-    }
+-
+-    /** @return whether the tag is an 'return' tag **/
+-    boolean isReturnTag()
+-    {
+-        return JavadocTagInfo.RETURN.equals(mTagInfo);
+-    }
+-
+-    /** @return whether the tag is an 'param' tag **/
+-    boolean isParamTag()
+-    {
+-        return JavadocTagInfo.PARAM.equals(mTagInfo);
+-    }
+-
+-    /** @return whether the tag is an 'throws' or 'exception' tag **/
+-    boolean isThrowsTag()
+-    {
+-        return (JavadocTagInfo.THROWS.equals(mTagInfo)
+-            || JavadocTagInfo.EXCEPTION.equals(mTagInfo));
+-    }
+-
+-    /** @return whether the tag is a 'see' or 'inheritDoc' tag **/
+-    boolean isSeeOrInheritDocTag()
+-    {
+-        return (JavadocTagInfo.SEE.equals(mTagInfo) || isInheritDocTag());
+-    }
+-
+-    /** @return whether the tag is a 'inheritDoc' tag **/
+-    boolean isInheritDocTag()
+-    {
+-        return JavadocTagInfo.INHERIT_DOC.equals(mTagInfo);
+-    }
+-}
+-
+diff --git a/src/checkstyle/com/puppycrawl/tools/checkstyle/checks/javadoc/JavadocTypeCheck.java b/src/checkstyle/com/puppycrawl/tools/checkstyle/checks/javadoc/JavadocTypeCheck.java
+index 2d82a0a..49f8fac 100755
+--- a/src/checkstyle/com/puppycrawl/tools/checkstyle/checks/javadoc/JavadocTypeCheck.java
++++ b/src/checkstyle/com/puppycrawl/tools/checkstyle/checks/javadoc/JavadocTypeCheck.java
+@@ -18,11 +18,15 @@
+ ////////////////////////////////////////////////////////////////////////////////
+ package com.puppycrawl.tools.checkstyle.checks.javadoc;
+ 
+-import com.google.common.collect.Lists;
+ import com.puppycrawl.tools.checkstyle.api.Check;
+ import com.puppycrawl.tools.checkstyle.api.DetailAST;
+ import com.puppycrawl.tools.checkstyle.api.FileContents;
++import com.puppycrawl.tools.checkstyle.api.JavadocTag;
+ import com.puppycrawl.tools.checkstyle.api.JavadocTagInfo;
++import com.puppycrawl.tools.checkstyle.api.JavadocUtils;
++import com.puppycrawl.tools.checkstyle.api.JavadocUtils.InvalidJavadocTag;
++import com.puppycrawl.tools.checkstyle.api.JavadocUtils.JavadocTagType;
++import com.puppycrawl.tools.checkstyle.api.JavadocUtils.JavadocTags;
+ import com.puppycrawl.tools.checkstyle.api.Scope;
+ import com.puppycrawl.tools.checkstyle.api.ScopeUtils;
+ import com.puppycrawl.tools.checkstyle.api.TextBlock;
+@@ -40,7 +44,6 @@ import org.apache.commons.beanutils.ConversionException;
+  *
+  * @author Oliver Burn
+  * @author Michael Tamm
+- * @version 1.1
+  */
+ public class JavadocTypeCheck
+     extends Check
+@@ -207,41 +210,19 @@ public class JavadocTypeCheck
+ 
+     /**
+      * Gets all standalone tags from a given javadoc.
+-     * @param aCmt teh Javadoc comment to process.
++     * @param aCmt the Javadoc comment to process.
+      * @return all standalone tags from the given javadoc.
+      */
+     private List<JavadocTag> getJavadocTags(TextBlock aCmt)
+     {
+-        final String[] text = aCmt.getText();
+-        final List<JavadocTag> tags = Lists.newArrayList();
+-        Pattern tagPattern = Utils.getPattern("/\\*{2,}\\s*@(\\p{Alpha}+)\\s");
+-        for (int i = 0; i < text.length; i++) {
+-            final String s = text[i];
+-            final Matcher tagMatcher = tagPattern.matcher(s);
+-            if (tagMatcher.find()) {
+-                final String tagName = tagMatcher.group(1);
+-
+-                String content = s.substring(tagMatcher.end(1));
+-                if (content.endsWith("*/")) {
+-                    content = content.substring(0, content.length() - 2);
+-                }
+-                int col = tagMatcher.start(1) - 1;
+-                if (i == 0) {
+-                    col += aCmt.getStartColNo();
+-                }
+-
+-                if (JavadocTagInfo.isValidName(tagName)) {
+-                    tags.add(new JavadocTag(aCmt.getStartLineNo() + i, col,
+-                            tagName, content.trim()));
+-                }
+-                else if (!mAllowUnknownTags) {
+-                    log(aCmt.getStartLineNo() + i, col,
+-                            "javadoc.unknownTag", tagName);
+-                }
++        JavadocTags tags =
++            JavadocUtils.getJavadocTags(aCmt, JavadocTagType.BLOCK);
++        if (!mAllowUnknownTags) {
++            for (InvalidJavadocTag tag : tags.invalidTags) {
++                log(tag.line, tag.col, "javadoc.unknownTag", tag.name);
+             }
+-            tagPattern = Utils.getPattern("^\\s*\\**\\s*@(\\p{Alpha}+)\\s");
+         }
+-        return tags;
++        return tags.validTags;
+     }
+ 
+     /**
+diff --git a/src/testinputs/com/puppycrawl/tools/checkstyle/imports/InputImport.java b/src/testinputs/com/puppycrawl/tools/checkstyle/imports/InputImport.java
+index d52658d..5b22bdb 100755
+--- a/src/testinputs/com/puppycrawl/tools/checkstyle/imports/InputImport.java
++++ b/src/testinputs/com/puppycrawl/tools/checkstyle/imports/InputImport.java
+@@ -28,12 +28,17 @@ import static java.io.File.createTempFile;
+ import static sun.net.ftpclient.FtpClient.*;
+ import java.awt.Component;
+ import java.awt.Label;
++import java.util.Date;
++import java.util.Calendar;
++import java.util.BitSet;
+ 
+ /**
+  * Test case for imports
++ * Here's an import used only by javadoc: {@link Date}.
+  * @author Oliver Burn
+  * @author lkuehne
+  * @author Michael Studman
++ * @see Calendar Should avoid unused import for Calendar
+  **/
+ class InputImport
+ {
+@@ -65,8 +70,12 @@ class InputImport
+     /** usage of inner class in constructor, fully qualified */
+     private Object mUse6 = new javax.swing.JToggleButton.ToggleButtonModel();
+ 
+-    /** we use class name as member's name. */
++    /** we use class name as member's name.
++     *  also an inline JavaDoc-only import {@link Vector linkText} */
+     private int Component;
+ 
++    /**
++     * method comment with JavaDoc-only import {@link BitSet#aMethod()}
++     */
+     public void Label() {}
+ }
+diff --git a/src/tests/com/puppycrawl/tools/checkstyle/api/JavadocUtilsTest.java b/src/tests/com/puppycrawl/tools/checkstyle/api/JavadocUtilsTest.java
+new file mode 100644
+index 0000000..cf682bf
+--- /dev/null
++++ b/src/tests/com/puppycrawl/tools/checkstyle/api/JavadocUtilsTest.java
+@@ -0,0 +1,109 @@
++////////////////////////////////////////////////////////////////////////////////
++// checkstyle: Checks Java source code for adherence to a set of rules.
++// Copyright (C) 2001-2010  Oliver Burn
++//
++// This library is free software; you can redistribute it and/or
++// modify it under the terms of the GNU Lesser General Public
++// License as published by the Free Software Foundation; either
++// version 2.1 of the License, or (at your option) any later version.
++//
++// This library is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++// Lesser General Public License for more details.
++//
++// You should have received a copy of the GNU Lesser General Public
++// License along with this library; if not, write to the Free Software
++// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
++////////////////////////////////////////////////////////////////////////////////
++package com.puppycrawl.tools.checkstyle.api;
++
++import com.puppycrawl.tools.checkstyle.api.JavadocUtils.JavadocTags;
++import java.util.List;
++import static org.junit.Assert.assertEquals;
++import static org.junit.Assert.fail;
++import org.junit.Test;
++
++public class JavadocUtilsTest
++{
++
++    @Test
++    public void testTags() {
++        String [] text = { "/** @see elsewhere ",
++                           " * {@link List }, {@link  List link text }",
++                           "   {@link List#add(Object) link text}",
++                           " * {@link Class link text}"};
++        Comment comment = new Comment(text, 1, 4, text[3].length());
++        JavadocTags allTags =
++            JavadocUtils.getJavadocTags(comment, JavadocUtils.JavadocTagType.ALL);
++        assertEquals(5, allTags.validTags.size());
++    }
++
++    @Test
++    public void testTagType() {
++        String [] text = { "/** @see block",
++                           " * {@link List inline}, {@link List#add(Object)}" };
++        Comment comment = new Comment(text, 1, 2, text[1].length());
++        JavadocTags blockTags =
++            JavadocUtils.getJavadocTags(comment, JavadocUtils.JavadocTagType.BLOCK);
++        JavadocTags inlineTags =
++            JavadocUtils.getJavadocTags(comment, JavadocUtils.JavadocTagType.INLINE);
++        assertEquals(1, blockTags.validTags.size());
++        assertEquals(2, inlineTags.validTags.size());
++    }
++
++    @Test
++    public void testInlineTagLinkText() {
++        String [] text = { "/** {@link  List link text }" };
++        Comment comment = new Comment(text, 1, 1, text[0].length());
++        List<JavadocTag> tags = JavadocUtils.getJavadocTags(
++            comment, JavadocUtils.JavadocTagType.ALL).validTags;
++        assertEquals("List link text", tags.get(0).getArg1());
++    }
++
++    @Test
++    public void testInlineTagMethodRef() {
++        String [] text = { "/** {@link  List#add(Object)}" };
++        Comment comment = new Comment(text, 1, 1, text[0].length());
++        List<JavadocTag> tags = JavadocUtils.getJavadocTags(
++            comment, JavadocUtils.JavadocTagType.ALL).validTags;
++        assertEquals("List#add(Object)", tags.get(0).getArg1());
++    }
++
++    @Test
++    public void testTagPositions() {
++        String [] text = { "/** @see elsewhere",
++                           "    also {@link Name value} */" };
++        Comment comment = new Comment(text, 1, 2, text[1].length());
++
++        List<JavadocTag> tags = JavadocUtils.getJavadocTags(
++            comment, JavadocUtils.JavadocTagType.ALL).validTags;
++
++        assertEquals(2, tags.size());
++        for (JavadocTag tag : tags) {
++            if (JavadocTagInfo.SEE.getName().equals(tag.getTagName())) {
++                assertEquals(1, tag.getLineNo());
++                assertEquals(5, tag.getColumnNo());
++            }
++            else if (JavadocTagInfo.LINK.getName().equals(tag.getTagName())) {
++                assertEquals(2, tag.getLineNo());
++                assertEquals(10, tag.getColumnNo());
++            }
++            else {
++                fail("Unexpected tag: " + tag);
++            }
++        }
++    }
++
++    @Test
++    public void testInvalidTags() {
++        String [] text = { "/** @fake block",
++                           " * {@bogus inline}",
++                           " * {@link List valid}"};
++        Comment comment = new Comment(text, 1, 3, text[2].length());
++        JavadocTags allTags =
++            JavadocUtils.getJavadocTags(comment, JavadocUtils.JavadocTagType.ALL);
++        assertEquals(2, allTags.invalidTags.size());
++        assertEquals(1, allTags.validTags.size());
++    }
++}
