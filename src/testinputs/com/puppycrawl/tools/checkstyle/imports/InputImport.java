@@ -30,6 +30,7 @@ import java.awt.Component;
 import java.awt.Label;
 import java.util.Date;
 import java.util.Calendar;
+import java.util.BitSet;
 
 /**
  * Test case for imports
@@ -69,8 +70,12 @@ class InputImport
     /** usage of inner class in constructor, fully qualified */
     private Object mUse6 = new javax.swing.JToggleButton.ToggleButtonModel();
 
-    /** we use class name as member's name. */
+    /** we use class name as member's name.
+     *  also an inline JavaDoc-only import {@link Vector linkText} */
     private int Component;
 
+    /**
+     * method comment with JavaDoc-only import {@link BitSet#aMethod()}
+     */
     public void Label() {}
 }

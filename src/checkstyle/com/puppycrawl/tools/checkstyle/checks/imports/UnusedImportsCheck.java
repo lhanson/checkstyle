@@ -21,10 +21,18 @@ package com.puppycrawl.tools.checkstyle.checks.imports;
 import com.google.common.collect.Sets;
 import com.puppycrawl.tools.checkstyle.api.Check;
 import com.puppycrawl.tools.checkstyle.api.DetailAST;
+import com.puppycrawl.tools.checkstyle.api.FileContents;
 import com.puppycrawl.tools.checkstyle.api.FullIdent;
+import com.puppycrawl.tools.checkstyle.api.JavadocTag;
+import com.puppycrawl.tools.checkstyle.api.JavadocUtils;
+import com.puppycrawl.tools.checkstyle.api.JavadocUtils.JavadocTags;
+import com.puppycrawl.tools.checkstyle.api.TextBlock;
 import com.puppycrawl.tools.checkstyle.api.TokenTypes;
 import com.puppycrawl.tools.checkstyle.api.Utils;
+import java.util.List;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * <p>
@@ -40,7 +48,6 @@ import java.util.Set;
  * Compatible with Java 1.5 source.
  *
  * @author Oliver Burn
- * @version 1.1
  */
 public class UnusedImportsCheck extends Check
 {
@@ -139,6 +146,7 @@ public class UnusedImportsCheck extends Check
         {
             mReferenced.add(aAST.getText());
         }
+        processJavadoc(aAST);
     }
 
     /**
@@ -164,6 +172,32 @@ public class UnusedImportsCheck extends Check
                 aAST.getFirstChild().getNextSibling());
         if ((name != null) && !name.getText().endsWith(".*")) {
             mImports.add(name);
+        }
+    }
+
+    /**
+     * Collects references made in JavaDoc comments.
+     * @param aAST node to inspect for JavaDoc
+     */
+    private void processJavadoc(DetailAST aAST) {
+        final FileContents contents = getFileContents();
+        final int lineNo = aAST.getLineNo();
+        final TextBlock cmt = contents.getJavadocBefore(lineNo);
+        if (cmt != null) {
+            final JavadocTags tags =
+                JavadocUtils.getJavadocTags(cmt, JavadocUtils.JavadocTagType.ALL);
+            for (JavadocTag tag : tags.validTags) {
+                if (tag.canReferenceImports()) {
+                    String identifier = tag.getArg1();
+                    // Trim off method or link text
+                    Pattern pattern = Utils.getPattern("(.+?)(?:\\s+|#|\\$).*");
+                    Matcher matcher = pattern.matcher(identifier);
+                    if (matcher.find()) {
+                        identifier = matcher.group(1);
+                    }
+                    mReferenced.add(identifier);
+                }
+            }
         }
     }
 }
