@@ -1,0 +1,13 @@
+diff --git a/pom.xml b/pom.xml
+index 97bee3a..66c8c1a 100755
+--- a/pom.xml
++++ b/pom.xml
+@@ -548,7 +548,7 @@
+       <activation>
+         <property>
+           <name>java.vendor</name>
+-          <value>Sun Microsystems Inc.</value>
++          <value>Oracle Corporation</value>
+         </property>
+       </activation>
+       <dependencies>
