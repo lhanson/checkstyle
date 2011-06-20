@@ -55,10 +55,8 @@ public class FileContentsHolder
     }
 
     @Override
-    public void finishTree(DetailAST aRootAST)
+    public void destroy()
     {
-        // This seems like the right thing to do, but is called before
-        // the messages are passed to the filters.
-        //sFileContents.set(null);
+        FILE_CONTENTS.set(null);
     }
 }
